@@ -52,7 +52,7 @@ def segmenter_donnees(x, y):
     changements = algo.predict(pen=0)  # Réduire `pen` pour avoir plus de segments
     segments = []
     print('changements',changements)
-    changements = [3, 4, 8, 11, 15, 17,21]  # Vous pouvez ajuster ces points dynamiquement ou les rendre plus intelligents
+    changements = [3, 4, 8, 11, 15, 18,21]  # Vous pouvez ajuster ces points dynamiquement ou les rendre plus intelligents
 
     debut = 0
     for fin in changements:
