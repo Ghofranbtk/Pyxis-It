@@ -9,10 +9,11 @@ import warnings
 # === 1. LECTURE ET NORMALISATION DES DONNÉES ===
 def lire_donnees(fichier):
     df = pd.read_csv(fichier)
-    df['X'] = (df['X'] - df['X'].min()) / 86400  # Convertir X en jours
-    df['Y'] = (df['Y'] - df['Y'].min()) / (df['Y'].max() - df['Y'].min())  # Normalisation Y
-    print(df)
+    df['hour'] = (df['hour'] - df['hour'].min()) / 3600  # Convertir en heures depuis le début
+    df['value'] = (df['value'] - df['value'].min()) / (df['value'].max() - df['value'].min())  # Normalisation
+    print(df.head())  # Afficher les premières lignes pour vérification
     return df.dropna()
+
 
 # === 2. MODÈLES MATHÉMATIQUES ===
 def modele_lineaire(x, a, b):
@@ -56,7 +57,7 @@ def segmenter_donnees(x, y):
     changements = algo.predict(pen=0)  # Réduire `pen` pour avoir plus de segments
     segments = []
     print('changements',changements)
-    changements = [3, 4, 8, 11, 15, 18,21]  # Vous pouvez ajuster ces points dynamiquement ou les rendre plus intelligents
+    # changements = [12, 13, 20, 25, 15, 18,21]  # Vous pouvez ajuster ces points dynamiquement ou les rendre plus intelligents
 
     debut = 0
     for fin in changements:
@@ -66,15 +67,17 @@ def segmenter_donnees(x, y):
 
     return segments
 
+
 # === 5. ANALYSE ET CHOIX DU MEILLEUR MODÈLE PAR SEGMENT ===
 def analyser_segments(fichier):
     data = lire_donnees(fichier)
-    x_data, y_data = data['X'].values, data['Y'].values
+    x_data, y_data = data['hour'].values, data['value'].values
     segments = segmenter_donnees(x_data, y_data)
 
     plt.figure(figsize=(12, 6))
 
-    erreurs_globale = {'Linéaire': [], 'Gaussien': [], 'Sinusoïdal': [], 'Exponentiel': [], 'Cosinus': []}
+    # Enlever cette ligne pour afficher tous les segments
+    # segments = segments[:2]  # Cette ligne est maintenant supprimée pour afficher tous les segments
 
     for i, (x_seg, y_seg) in enumerate(segments):
         erreurs = {}
@@ -103,11 +106,6 @@ def analyser_segments(fichier):
             p0=[1, 2*np.pi, 0, np.mean(y_seg)],
             bounds=([0, 0, -np.pi, -1], [np.inf, 10*np.pi, np.pi, 1])  
         )
-
-        # Ajouter les erreurs globales pour chaque modèle
-        for modele, erreur in erreurs.items():
-            if erreur != float('inf'):
-                erreurs_globale[modele].append(erreur)
 
         # Afficher tous les modèles
         for modele, erreur in erreurs.items():
@@ -144,14 +142,7 @@ def analyser_segments(fichier):
         elif meilleur_modele == 'Cosinus' and params_cos is not None:
             plt.plot(x_seg, y_pred_cos, label="Cosinus", linestyle="dashed")
 
-    # Calculer et afficher l'erreur globale pour chaque modèle
-    print("\nErreur globale pour chaque modèle :")
-    for modele, erreurs in erreurs_globale.items():
-        if erreurs:
-            erreur_globale_moyenne = np.mean(erreurs)
-            print(f"{modele} : {erreur_globale_moyenne}")
-
-    plt.xlabel("Temps (jours)")
+    plt.xlabel("Temps (hour)")
     plt.ylabel("Y (normalisé)")
     plt.title("Segmentation et Ajustement des Modèles")
     plt.legend()
@@ -159,5 +150,5 @@ def analyser_segments(fichier):
     plt.show()
 
 # Exemple de fichier de données
-fichier_data = "points_reduits.txt"
+fichier_data = "points_reduits_by_hour.txt"
 analyser_segments(fichier_data)

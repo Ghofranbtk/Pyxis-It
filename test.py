@@ -11,6 +11,7 @@ def lire_donnees(fichier):
     df = pd.read_csv(fichier)
     df['X'] = (df['X'] - df['X'].min()) / 86400  # Convertir X en jours
     df['Y'] = (df['Y'] - df['Y'].min()) / (df['Y'].max() - df['Y'].min())  # Normalisation Y
+    print(df)
     return df.dropna()
 
 # === 2. MODÈLES MATHÉMATIQUES ===
@@ -26,14 +27,16 @@ def modele_sinusoide(x, a, b, c, d):
 def modele_exponentiel(x, a, b, c):
     return a * np.exp(np.clip(b * x, -100, 100)) + c  
 
+# Nouveau modèle : Cosinus
+def modele_cosinus(x, a, b, c, d):
+    return a * np.cos(b * x + c) + d
+
 # === 3. FONCTION D'AJUSTEMENT DES MODÈLES ===
-# Importation des warnings
 from scipy.optimize import OptimizeWarning
 import warnings
 
-# Fonction d'ajustement avec suppression des avertissements
 def ajuster_modele(x, y, modele, p0=None, bounds=(-np.inf, np.inf)):
-    if len(x) < 4:  # Trop peu de points
+    if len(x) < 2:  # Trop peu de points
         return float('inf'), None, None
     try:
         with warnings.catch_warnings():
@@ -46,7 +49,6 @@ def ajuster_modele(x, y, modele, p0=None, bounds=(-np.inf, np.inf)):
         print(f"Erreur lors de l'ajustement du modèle : {e}")
         return float('inf'), None, None
 
-
 # === 4. SEGMENTATION AUTOMATIQUE AVEC PARAMÈTRE AJUSTÉ ===
 def segmenter_donnees(x, y):
     signal = np.array(y).reshape(-1, 1)
@@ -54,7 +56,7 @@ def segmenter_donnees(x, y):
     changements = algo.predict(pen=0)  # Réduire `pen` pour avoir plus de segments
     segments = []
     print('changements',changements)
-    changements = [4, 8, 12, 16, 21]  # Vous pouvez ajuster ces points dynamiquement ou les rendre plus intelligents
+    changements = [3, 4, 8, 11, 15, 18,21]  # Vous pouvez ajuster ces points dynamiquement ou les rendre plus intelligents
 
     debut = 0
     for fin in changements:
@@ -72,10 +74,13 @@ def analyser_segments(fichier):
 
     plt.figure(figsize=(12, 6))
 
+    # Enlever cette ligne pour afficher tous les segments
+    # segments = segments[:2]  # Cette ligne est maintenant supprimée pour afficher tous les segments
+
     for i, (x_seg, y_seg) in enumerate(segments):
         erreurs = {}
-        erreurs['Linéaire'], params_lin, y_pred_lin = ajuster_modele(x_seg, y_seg, modele_lineaire)
 
+        erreurs['Linéaire'], params_lin, y_pred_lin = ajuster_modele(x_seg, y_seg, modele_lineaire)
         erreurs['Gaussien'], params_gauss, y_pred_gauss = ajuster_modele(
             x_seg, y_seg, modele_gaussien, 
             p0=[1, np.mean(x_seg), 1], 
@@ -94,6 +99,16 @@ def analyser_segments(fichier):
             bounds=([0, -5, -1], [np.inf, 0.5, 1])  
         )
 
+        erreurs['Cosinus'], params_cos, y_pred_cos = ajuster_modele(
+            x_seg, y_seg, modele_cosinus, 
+            p0=[1, 2*np.pi, 0, np.mean(y_seg)],
+            bounds=([0, 0, -np.pi, -1], [np.inf, 10*np.pi, np.pi, 1])  
+        )
+
+        # Afficher tous les modèles
+        for modele, erreur in erreurs.items():
+            print(f"Segment {i+1} - Erreur {modele}: {erreur}")
+
         erreurs = {k: v for k, v in erreurs.items() if v != float('inf')}
         meilleur_modele = min(erreurs, key=erreurs.get) if erreurs else "Aucun"
 
@@ -108,7 +123,10 @@ def analyser_segments(fichier):
             print(f"  Coefficients du modèle Sinusoïdal (a, b, c, d) : {params_sin}")
         if params_exp is not None:
             print(f"  Coefficients du modèle Exponentiel (a, b, c) : {params_exp}")
+        if params_cos is not None:
+            print(f"  Coefficients du modèle Cosinus (a, b, c, d) : {params_cos}")
 
+        # Afficher le meilleur modèle pour le segment
         plt.scatter(x_seg, y_seg, label=f"Segment {i+1} - Données")
 
         if meilleur_modele == 'Linéaire' and params_lin is not None:
@@ -119,6 +137,8 @@ def analyser_segments(fichier):
             plt.plot(x_seg, y_pred_sin, label="Sinusoïdal", linestyle="dashed")
         elif meilleur_modele == 'Exponentiel' and params_exp is not None:
             plt.plot(x_seg, y_pred_exp, label="Exponentiel", linestyle="dashed")
+        elif meilleur_modele == 'Cosinus' and params_cos is not None:
+            plt.plot(x_seg, y_pred_cos, label="Cosinus", linestyle="dashed")
 
     plt.xlabel("Temps (jours)")
     plt.ylabel("Y (normalisé)")
@@ -127,5 +147,6 @@ def analyser_segments(fichier):
     plt.grid(True)
     plt.show()
 
+# Exemple de fichier de données
 fichier_data = "points_reduits.txt"
 analyser_segments(fichier_data)
